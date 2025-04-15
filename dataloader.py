@@ -6,13 +6,13 @@ import joblib
 import pickle
 
 class TemporalDataset(Dataset):
-    def __init__(self, split_csv_path, feature_path, pose_feature_path, use_pose=False):
+    def __init__(self, split_csv_path, features_path, pose_features_path, use_pose=False):
         """
         Args:
             dataframe (pd.DataFrame): DataFrame containing the dataset.
         """
         self.data = pd.read_csv(split_csv_path)
-        self.feature_path = feature_path
+        self.features_path = features_path
         self.pose_features_path = pose_feature_path
         self.use_pose = use_pose
 
@@ -41,7 +41,7 @@ class TemporalDataset(Dataset):
         #load pose feature
         if self.use_pose:
             pose_features = joblib.load(os.path.join(self.pose_features_path, f"trimmed_{sample['vid']}_cam0{sample['cam']}_{int(sample['window_start_frame'])}_{int(sample['window_end_frame'])}/wham_output.pkl"))
-            pose_features = pose_features[0]['pose'][::30] #downsample to 1 second 1 pose
+            pose_features = pose_features[0]['pose'][::30] # downsample to 1 pose / second
             # pose_features = torch.randn(30,72)
         else:
             pose_features = None
