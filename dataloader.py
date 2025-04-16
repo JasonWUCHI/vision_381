@@ -13,7 +13,7 @@ class TemporalDataset(Dataset):
         """
         self.data = pd.read_csv(split_csv_path)
         self.features_path = features_path
-        self.pose_features_path = pose_feature_path
+        self.pose_features_path = pose_features_path
         self.use_pose = use_pose
 
     def __len__(self):
@@ -35,7 +35,7 @@ class TemporalDataset(Dataset):
         # narration_feature = torch.randn(1,4096)
 
         #video feature
-        video_features = torch.load(os.path.join(self.features_path, f"{sample['vid']}_{sample['cam']}.pt"))[sample['window_start_frame']//30:sample['window_end_frame']//30]
+        video_features = torch.load(os.path.join(self.features_path, f"{sample['vid']}_cam0{sample['cam']}.pt"))[sample['window_start_frame']//30:sample['window_end_frame']//30]
         # video_features = torch.randn(30,4096)
 
         #load pose feature
