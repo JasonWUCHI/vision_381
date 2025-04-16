@@ -101,7 +101,7 @@ class ExoGroundingTransformer(nn.Module):
         text_encoded_features = self.get_unimodal_features("text", lang_embed_with_time, lang_padding_mask).mean(dim=1) #Transformer
 
         # combine with pose (To be discussed)
-        if self.use_pose:
+        if self.use_pose is not None:
             pose_encoded_features = self.get_pose_feature(pose_embed)
             video_encoded_features = (video_encoded_features+pose_encoded_features)/2
 

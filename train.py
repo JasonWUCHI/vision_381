@@ -53,7 +53,7 @@ for epoch in range(num_epochs):
             batch['narration_feature'],
             batch['video_padding_mask'],
             batch['lang_padding_mask'],
-            batch['pose_features']
+            pose_embed=batch['pose_features']
         )
 
         output_interval = output['interval_preds']
