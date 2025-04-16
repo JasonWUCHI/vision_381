@@ -12,26 +12,28 @@ model = ExoGroundingTransformer(use_pose=True)
 # Create the dataset
 # You might need to adjust these arguments based on your implementation of TemporalDataset
 dataset = TemporalDataset(
-    split_csv_path='train.csv',  # Update with actual path               # Or 'val', 'test'
-    feature_path='features/',                  # Add transform if needed
-    pose_feature_path='train_pose_features/',
-    use_pose='True'
+    'train.csv',  # Update with actual path               # Or 'val', 'test'
+    '/work/10300/abhinavbandari/ls6/features/part2_features',                  # Add transform if needed
+    '/work/10300/abhinavbandari/ls6/wham_output_train/',
+    use_pose=True
 )
 
+"""
 dataset = TemporalDataset(
-    split_csv_path='train_pretrain.csv',  # Update with actual path               # Or 'val', 'test'
-    feature_path='features/',                  # Add transform if needed
-    pose_feature_path=None,
-    use_pose='False'
+    'train_pretrain.csv',  # Update with actual path               # Or 'val', 'test'
+    '$WORK/features/part2_features',                  # Add transform if needed
+    None,
+    use_pose=False
 )
+"""
 
 # Create the DataLoader
 dataloader = DataLoader(
     dataset,
     batch_size=4,
     shuffle=True,
-    num_workers=1,       # Adjust depending on your system
-    pin_memory=True      # Recommended if using CUDA
+    num_workers=0,       # Adjust depending on your system
+    pin_memory=False      # Recommended if using CUDA
 )
 
 #Setup
