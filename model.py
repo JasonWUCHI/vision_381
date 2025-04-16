@@ -101,8 +101,18 @@ class ExoGroundingTransformer(nn.Module):
         text_encoded_features = self.get_unimodal_features("text", lang_embed_with_time, lang_padding_mask).mean(dim=1) #Transformer
 
         # combine with pose (To be discussed)
-        if self.use_pose is not None:
+        if self.use_pose:
             pose_encoded_features = self.get_pose_feature(pose_embed)
+            pose_encoded_features = torch.nn.functional.pad(
+                    pose_encoded_features, 
+                    (0, 0, 0, video_encoded_features.size()[1] - pose_encoded_features.size()[1]),
+                    mode='constant',
+                    value=0
+            )
+
+            #print('video_encoded_features.size()', video_encoded_features.size())
+            #print('pose_encoded_features.size()', pose_encoded_features.size())
+
             video_encoded_features = (video_encoded_features+pose_encoded_features)/2
 
         # get multi-modal feature output from encoder   

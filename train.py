@@ -6,8 +6,12 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import torch.optim as optim
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+use_pose = True
+
 # Instantiate the model
-model = ExoGroundingTransformer(use_pose=True)
+model = ExoGroundingTransformer(use_pose=use_pose).to(device)
 
 # Create the dataset
 # You might need to adjust these arguments based on your implementation of TemporalDataset
@@ -15,7 +19,7 @@ dataset = TemporalDataset(
     'train.csv',  # Update with actual path               # Or 'val', 'test'
     '/work/10300/abhinavbandari/ls6/features/part2_features',                  # Add transform if needed
     '/work/10300/abhinavbandari/ls6/wham_output_train/',
-    use_pose=True
+    use_pose=use_pose
 )
 
 """
@@ -30,7 +34,7 @@ dataset = TemporalDataset(
 # Create the DataLoader
 dataloader = DataLoader(
     dataset,
-    batch_size=4,
+    batch_size=1,
     shuffle=True,
     num_workers=0,       # Adjust depending on your system
     pin_memory=False      # Recommended if using CUDA
@@ -44,8 +48,7 @@ for epoch in range(num_epochs):
     total_loss = 0.0
 
     for batch in tqdm(dataloader, desc=f"Epoch {epoch+1}"):
-        # Move data to device if needed (optional)
-        # batch = {k: v.to(device) for k, v in batch.items()}
+        batch = {k: v.to(device) for k, v in batch.items()}
 
         # Forward pass
         output = model(
