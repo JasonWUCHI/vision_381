@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import os,sys
 import joblib
+import json
 import pickle
 
 class TemporalDataset(Dataset):
@@ -33,31 +34,30 @@ class TemporalDataset(Dataset):
         
         #narration
         narration_feature = torch.load(os.path.join(self.features_path, f"{sample['narration_id']}.pt"))
-        # narration_feature = torch.randn(1,4096)
 
         #video feature
         video_features = torch.load(os.path.join(self.features_path, f"{sample['vid']}_cam0{sample['cam']}.pt"))[sample['window_start_frame']//30:sample['window_end_frame']//30]
-        # video_features = torch.randn(30,4096)
 
         #load pose feature
         if self.use_pose:
-            pose_features = joblib.load(os.path.join(self.pose_features_path, f"trimmed_{sample['vid']}_cam0{sample['cam']}_{int(sample['window_start_frame'])}_{int(sample['window_end_frame'])}/wham_output.pkl"))
+            pose_path = os.path.join(self.pose_features_path, f"trimmed_{sample['vid']}_cam0{sample['cam']}_{int(sample['window_start_frame'])}_{int(sample['window_end_frame'])}/wham_output.pkl")
+            pose_features = joblib.load(pose_path)
             if 'pose' in pose_features[0]:
-                pose_features = pose_features[0]['pose'][::30] # downsample to 1 pose / second
+                posefeat_len = len(pose_features[0]['pose'])
+
+                pose_features = torch.from_numpy(pose_features[0]['pose'][::30]) # downsample to 1 pose / second assuming they are 30 fps
             else:
-                print('pose not available', pose_features[0])
-                print(f"trimmed_{sample['vid']}_cam0{sample['cam']}_{int(sample['window_start_frame'])}_{int(sample['window_end_frame'])}/wham_output.pkl")
-                print()
-                
-                pose_features = torch.zeros(30, 72)
-            # pose_features = torch.randn(30,72)
+                raise RuntimeError("pose not available")
+
+            # pad pose features by duplicating the last pose feature to total of 30 poses for 30 seconds
+            n_pose_frames = pose_features.size(dim=0)
+            if n_pose_frames < 30:
+                pose_features = torch.cat((pose_features, torch.unsqueeze(pose_features[-1,:], 0).repeat(30 - n_pose_frames, 1)))
+                assert pose_features.size(dim=0) == 30 and pose_features.size(dim=1) == 72
         else:
             pose_features = None
 
         # Convert data into a dictionary
-        #print("sample['vid']", sample['vid'])
-        #print("sample['narration_id']", sample['narration_id'])
-        #print("sample['narration']", sample['narration'])
         data = {
             #'vid': sample['vid'],
             'cam': torch.from_numpy(np.asarray(sample['cam'])),
