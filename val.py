@@ -66,20 +66,20 @@ if __name__ == "__main__":
         num_workers=0,       # Adjust depending on your system
     )
 
-    for d in range(1,10):
-        pred_start, pred_end, start, end = [],[],[],[]
-        for batch in tqdm(dataloader):
-            
-            pred = model(
-                batch['video_features'],
-                batch['narration_feature'],
-                delta=0.1+0.01*d
-            )
+    
+    pred_start, pred_end, start, end = [],[],[],[]
+    for batch in tqdm(dataloader):
+        
+        pred = model(
+            batch['video_features'],
+            batch['narration_feature'],
+            delta=0.15
+        )
 
-            pred_start.extend(list(pred[0]))
-            pred_end.extend(list(pred[1]))
-            start.extend(list(batch['narration_start_idx']))
-            end.extend(list(batch['narration_end_idx']))
+        pred_start.extend(list(pred[0]))
+        pred_end.extend(list(pred[1]))
+        start.extend(list(batch['narration_start_idx']))
+        end.extend(list(batch['narration_end_idx']))
 
-        iou = temporal_iou(pred_start, pred_end, start, end)
-        print(iou)
+    iou = temporal_iou(pred_start, pred_end, start, end)
+    print(iou)
