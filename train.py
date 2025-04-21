@@ -23,7 +23,7 @@ train_dataset = TemporalDataset(
 )
 
 val_dataset = TemporalDataset(
-    'val.csv',  # Update with actual path               # Or 'val', 'test'
+    'val_clean.csv',  # Update with actual path               # Or 'val', 'test'
     '/work/10300/abhinavbandari/ls6/features/part2_features',                  # Add transform if needed
     '/work/10300/abhinavbandari/ls6/wham_output_val',
     use_pose=use_pose
