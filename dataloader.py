@@ -47,7 +47,7 @@ class TemporalDataset(Dataset):
 
                 pose_features = torch.from_numpy(pose_features[0]['pose'][::30]) # downsample to 1 pose / second assuming they are 30 fps
             else:
-                raise RuntimeError("pose not available")
+                raise RuntimeError(f"pose not available {pose_path}")
 
             # pad pose features by duplicating the last pose feature to total of 30 poses for 30 seconds
             n_pose_frames = pose_features.size(dim=0)
@@ -55,7 +55,7 @@ class TemporalDataset(Dataset):
                 pose_features = torch.cat((pose_features, torch.unsqueeze(pose_features[-1,:], 0).repeat(30 - n_pose_frames, 1)))
                 assert pose_features.size(dim=0) == 30 and pose_features.size(dim=1) == 72
         else:
-            pose_features = None
+            pose_features = torch.zeros(30, 72)
 
         # Convert data into a dictionary
         data = {
