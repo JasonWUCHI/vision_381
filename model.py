@@ -188,3 +188,42 @@ class ExoGroundingTransformer(nn.Module):
         pose_proj = self.ln_pose_init(self.pose_pre_proj(pose_embed))
         return pose_proj
 
+
+class SimilarityModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, video_embed, lang_embed, delta):
+        
+        B, T, D = video_embed.shape
+        lang_embed = lang_embed.expand(-1, T, -1)  # [B, T, D]
+
+        # Normalize embeddings to compute cosine similarity
+        video_norm = F.normalize(video_embed, dim=-1)  # [B, T, D]
+        lang_norm = F.normalize(lang_embed, dim=-1)    # [B, T, D]
+
+        sim = (video_norm * lang_norm).sum(dim=-1)  # [B, T] cosine similarity per frame
+
+        regions = []
+        for i in range(B):
+            sim_i = sim[i]  # [T]
+            peak_idx = torch.argmax(sim_i).item()
+            peak_val = sim_i[peak_idx].item()
+
+            # Expand left
+            start = peak_idx
+            while start > 0 and abs(sim_i[start - 1].item() - peak_val) <= delta:
+                start -= 1
+            if start != peak_idx:
+                start += 1
+
+            # Expand right
+            end = peak_idx
+            while end < T - 1 and abs(sim_i[end + 1].item() - peak_val) <= delta:
+                end += 1
+            if end != peak_idx:
+                end -= 1
+
+            regions.append((start, end))
+
+        return torch.tensor([a[0] for a in regions]), torch.tensor([a[1] for a in regions])
