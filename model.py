@@ -15,7 +15,7 @@ class ExoGroundingTransformer(nn.Module):
                  pose_embed_dim=72,
                  feature_dim=512,
                  num_max_views=1,
-                 use_pose = False,
+                 mode='pose+video', # options: 'pose_only', 'pose+video", 'video_only'
                  ):
         super().__init__()
 
@@ -27,7 +27,7 @@ class ExoGroundingTransformer(nn.Module):
         self.pose_embed_dim = pose_embed_dim
         self.feature_dim = feature_dim
         self.num_max_views = num_max_views
-        self.use_pose = use_pose
+        self.mode = mode
 
         #initalize multi-modal encoder and narration decoder
         self.tfm_modules = []
@@ -44,23 +44,23 @@ class ExoGroundingTransformer(nn.Module):
         self.text_unimodal_encoder = TemporalEncoder(width=feature_dim, layers=self.num_encoder_layers, heads=8)
         self.tfm_modules.append(self.text_unimodal_encoder)
 
-        if self.use_pose:
-            self.pose_pre_proj = nn.Linear(self.pose_embed_dim, self.feature_dim, bias=False)
-            self.ln_pose_init = LayerNorm(self.feature_dim)
+        self.pose_pre_proj = nn.Linear(self.pose_embed_dim, self.feature_dim, bias=False)
+        self.ln_pose_init = LayerNorm(self.feature_dim)
+        self.temporal_pos_embed = nn.Parameter(torch.empty(1024, self.feature_dim))
+        self.ln_position_init = LayerNorm(self.feature_dim)
+        self.video_pre_proj = nn.Linear(self.video_embed_dim, self.feature_dim, bias=False)
+        self.ln_video_init = LayerNorm(self.feature_dim)
+
+        # temporal positional encoding for video
+        nn.init.normal_(self.temporal_pos_embed, std=0.01)
 
         #initialize embeddings and projection layers
-        self.video_pre_proj = nn.Linear(self.video_embed_dim, self.feature_dim, bias=False)
         self.text_pre_proj = nn.Linear(self.text_embed_dim, self.feature_dim, bias=False)
         self.ln_text_init = LayerNorm(self.feature_dim)
-        self.ln_video_init = LayerNorm(self.feature_dim)
-        self.ln_position_init = LayerNorm(self.feature_dim)
         self.ln_joint_post_enc = LayerNorm(self.feature_dim)
         self.ln_video_post_enc = LayerNorm(self.feature_dim)
         self.ln_text_post_enc = LayerNorm(self.feature_dim)
         
-        # temporal positional encoding for video
-        self.temporal_pos_embed = nn.Parameter(torch.empty(1024, self.feature_dim))
-        nn.init.normal_(self.temporal_pos_embed, std=0.01)
 
         # temporal positional encoding for text
         self.text_temporal_pos_embed = nn.Parameter(torch.empty(self.text_embed_dim, self.feature_dim))
@@ -69,10 +69,13 @@ class ExoGroundingTransformer(nn.Module):
         self.initialize_parameters()
 
     def initialize_parameters(self):
-        if self.use_pose:
+        if self.mode == 'pose+video':
             linear_layers = [self.video_pre_proj, self.text_pre_proj, self.pose_pre_proj, self.grounding_head]
-        else:
+        elif self.mode == 'video_only':
             linear_layers = [self.video_pre_proj, self.text_pre_proj, self.grounding_head]
+        elif self.mode == 'pose_only':
+            linear_layers = [self.text_pre_proj, self.pose_pre_proj, self.grounding_head]
+
         for layer in linear_layers:
             nn.init.normal_(layer.weight, std=0.01)
             if layer.bias is not None:
@@ -100,25 +103,25 @@ class ExoGroundingTransformer(nn.Module):
         video_encoded_features = video_encoded_features.mean(dim=1) #Linear + Layernorm + position embedding + Transformers #[B,30,512]
         text_encoded_features = self.get_unimodal_features("text", lang_embed_with_time, lang_padding_mask).mean(dim=1) #Transformer
 
-        # combine with pose (To be discussed)
-        if self.use_pose:
+        #print('video_padding_mask', video_padding_mask)
+
+        # combine with pose
+        if self.mode in ('pose_only', 'pose+video'):
             pose_encoded_features = self.get_pose_feature(pose_embed)
-            pose_encoded_features = torch.nn.functional.pad(
-                    pose_encoded_features, 
-                    (0, 0, 0, video_encoded_features.size()[1] - pose_encoded_features.size()[1]),
-                    mode='constant',
-                    value=0
-            )
 
-            #print('video_encoded_features.size()', video_encoded_features.size())
-            #print('pose_encoded_features.size()', pose_encoded_features.size())
-
-            video_encoded_features = (video_encoded_features+pose_encoded_features)/2
+        if self.mode == 'pose+video':
+            video_encoded_features = torch.cat((video_encoded_features, pose_encoded_features), dim=1) # [B,60,512]
+            video_padding_mask = torch.cat((video_padding_mask, video_padding_mask), dim=1)
 
         # get multi-modal feature output from encoder   
-        all_output, _ = self.get_joint_feature(
-            video_encoded_features.squeeze(dim=1), video_padding_mask,
-            text_encoded_features, lang_padding_mask)  #concat + Transformer
+        if self.mode in ('video_only', 'pose+video'):
+            all_output, _ = self.get_joint_feature(
+                video_encoded_features.squeeze(dim=1), video_padding_mask,
+                text_encoded_features, lang_padding_mask)  #concat + Transformer
+        elif self.mode == 'pose_only':
+            all_output, _ = self.get_joint_feature(
+                pose_encoded_features.squeeze(dim=1), video_padding_mask,
+                text_encoded_features, lang_padding_mask)  #concat + Transformer
 
         decoder_context = all_output[:, :, :-N]
         text_features = all_output[:, :, -N:]
@@ -126,15 +129,16 @@ class ExoGroundingTransformer(nn.Module):
         # decoder for prediction
         decoder_output = self.decoder(x=text_features[:,-1,::].permute(1, 0, 2), memory=decoder_context[:,-1,::].permute(1, 0, 2), tgt_key_padding_mask=lang_padding_mask, memory_key_padding_mask=video_padding_mask)
         decoder_features = decoder_output[-1].permute(1,0,2)
-        grounding = self.activation(self.grounding_head(decoder_features))
+        #grounding = self.activation(self.grounding_head(decoder_features))
+        grounding = self.grounding_head(decoder_features)
 
         output_dict = {'interval_preds': grounding, 'low_dim_features': video_encoded_features}
         return output_dict 
 
-    def get_unimodal_features(self, mode, feat_embed, padding_mask):
+    def get_unimodal_features(self, modality, feat_embed, padding_mask):
         B,T,_,= feat_embed.shape
 
-        if mode == "video":
+        if modality == "video":
             proj_embed = self.ln_video_init(self.video_pre_proj(feat_embed))
             seq_len = T // self.num_max_views
             pos_start_idx = np.random.randint(0, int(seq_len/2))
@@ -146,7 +150,7 @@ class ExoGroundingTransformer(nn.Module):
 
         feat_embed_with_time = feat_embed_with_time.permute(1,0,2) # BXC -> XBC
 
-        if mode == "video":    
+        if modality == "video":    
             feat_output = self.video_unimodal_encoder(feat_embed_with_time, padding_mask)
             feat_output[-1] = self.ln_video_post_enc(feat_output[-1])
         else:

@@ -66,6 +66,8 @@ class TemporalDataset(Dataset):
             'video_features': video_features, #[30, 4096], one second one feature
             'narration_start': torch.from_numpy(np.asarray((sample['narration_start_frame']//30 - sample['window_start_frame']//30)/30)), # the gt of the action window, normalized to 0-1, the last divide-by-30 is because the length of the clip is 30
             'narration_end': torch.from_numpy(np.asarray((sample['narration_end_frame']//30 - sample['window_start_frame']//30)/30)), # the gt of the action window, normalized to 0-1
+            'narration_start_idx': torch.from_numpy(np.asarray((sample['narration_start_frame']//30 - sample['window_start_frame']//30))), # the gt of the action window, normalized to 0-1
+            'narration_end_idx': torch.from_numpy(np.asarray((sample['narration_end_frame']//30 - sample['window_start_frame']//30))), # the gt of the action window, normalized to 0-1
             #'narration_id': sample['narration_id'], #used to get the narration_feature in keystep_annotations.csv
             'narration_feature': narration_feature, #[1,4096]
             #'narration': sample['narration'], #the text
